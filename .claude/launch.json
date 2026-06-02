@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "global-village",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "8766", "C:\\Users\\user\\Desktop\\Claude\\CODE\\global_village"],
+      "port": 8766
+    }
+  ]
+}

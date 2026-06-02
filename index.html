@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全球村 AI 探究任務包</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+
+        :root {
+            --blue: #2563eb; --green: #16a34a; --yellow: #d97706; --purple: #7c3aed; --red: #dc2626;
+        }
+
+        * { box-sizing: border-box; }
+        body { font-family: 'Noto Sans TC', sans-serif; background: #f0f4f8; scroll-behavior: smooth; }
+
+        /* ── 頂端導覽 ── */
+        #topnav { position: sticky; top: 0; z-index: 100; background: white; border-bottom: 2px solid #e5e7eb; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+        .nav-step { cursor: pointer; transition: all .2s; border-bottom: 3px solid transparent; }
+        .nav-step.active { border-bottom-color: var(--blue); color: var(--blue); }
+        .nav-step.done .step-dot { background: #22c55e; }
+        .step-dot { width: 22px; height: 22px; border-radius: 50%; background: #d1d5db; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: white; transition: background .3s; flex-shrink: 0; }
+
+        /* ── 工具卡片 ── */
+        .tool-section { scroll-margin-top: 72px; }
+
+        /* ── 圓餅圖 ── */
+        .pie { border-radius: 50%; width: 130px; height: 130px; box-shadow: 0 8px 20px rgba(0,0,0,.12); transition: background .4s; flex-shrink: 0; }
+
+        /* ── SVG 流動箭頭 ── */
+        @keyframes dashFlow { to { stroke-dashoffset: -24; } }
+        .flow-line { stroke-dasharray: 12 8; animation: dashFlow 1.2s linear infinite; }
+
+        /* ── 地圖容器 ── */
+        .map-wrap {
+            width: 100%; aspect-ratio: 2/1; position: relative;
+            background: url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg') center/100% 100% no-repeat, #bfdbfe;
+            border-radius: .5rem; overflow: hidden;
+        }
+
+        /* ── 動畫 ── */
+        @keyframes popIn { 0%{transform:scale(.5);opacity:0} 80%{transform:scale(1.1)} 100%{transform:scale(1);opacity:1} }
+        .pop-in { animation: popIn .5s ease forwards; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
+        .fade-up { animation: fadeUp .4s ease forwards; }
+
+        /* ── 勳章 ── */
+        .badge { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg,#fbbf24,#f59e0b); color: white; font-weight: 700; font-size: .75rem; padding: 4px 12px; border-radius: 999px; box-shadow: 0 2px 6px rgba(245,158,11,.4); }
+
+        /* ── 滑桿 ── */
+        input[type=range] { accent-color: #4f46e5; width: 100%; }
+
+
+        /* ── 辯論輸入區 ── */
+        .stance-card { transition: all .2s; cursor: pointer; border: 2px solid transparent; }
+        .stance-card.selected { border-color: var(--purple); background: #f5f3ff; }
+        .stance-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,.1); }
+
+        /* ── 工具一上傳區 ── */
+        .upload-zone { border: 2px dashed #93c5fd; border-radius: .75rem; transition: all .2s; }
+        .upload-zone:hover { border-color: #2563eb; background: #eff6ff; }
+        .upload-zone.dragover { border-color: #2563eb; background: #dbeafe; transform: scale(1.01); }
+
+        /* ── 響應式地圖 ── */
+        @media (max-width: 640px) {
+            .map-side { display: none !important; }
+        }
+
+        /* 隱藏捲軸但保持功能 */
+        .no-scroll { scrollbar-width: none; }
+        .no-scroll::-webkit-scrollbar { display: none; }
+
+        /* 提示詞 hover */
+        .prompt-chip { cursor: pointer; transition: all .15s; }
+        .prompt-chip:hover { background: #bbf7d0; transform: translateX(3px); }
+    </style>
+</head>
+<body class="pb-20">
+
+<!-- ══════════════ 頂端固定導覽列 ══════════════ -->
+<nav id="topnav" class="px-4">
+    <div class="max-w-7xl mx-auto flex items-center justify-between h-14">
+        <!-- Logo -->
+        <span class="text-blue-700 font-black text-lg flex items-center gap-2 shrink-0">
+            🌐 <span class="hidden sm:inline">全球村探究</span>
+        </span>
+        <!-- 步驟指示器 -->
+        <div class="flex items-center gap-1 sm:gap-3 overflow-x-auto no-scroll flex-1 justify-center px-2" id="stepNav">
+            <button class="nav-step active flex items-center gap-1.5 px-2 sm:px-3 py-3 text-xs sm:text-sm font-bold whitespace-nowrap" onclick="scrollToTool(1)">
+                <div class="step-dot" id="dot1">1</div>
+                <span class="hidden sm:inline">商品解碼器</span>
+            </button>
+            <span class="text-gray-300">›</span>
+            <button class="nav-step flex items-center gap-1.5 px-2 sm:px-3 py-3 text-xs sm:text-sm font-bold whitespace-nowrap" onclick="scrollToTool(2)">
+                <div class="step-dot" id="dot2">2</div>
+                <span class="hidden sm:inline">全球流通局</span>
+            </button>
+            <span class="text-gray-300">›</span>
+            <button class="nav-step flex items-center gap-1.5 px-2 sm:px-3 py-3 text-xs sm:text-sm font-bold whitespace-nowrap" onclick="scrollToTool(3)">
+                <div class="step-dot" id="dot3">3</div>
+                <span class="hidden sm:inline">供應鏈透視</span>
+            </button>
+            <span class="text-gray-300">›</span>
+            <button class="nav-step flex items-center gap-1.5 px-2 sm:px-3 py-3 text-xs sm:text-sm font-bold whitespace-nowrap" onclick="scrollToTool(4)">
+                <div class="step-dot" id="dot4">4</div>
+                <span class="hidden sm:inline">辯論會</span>
+            </button>
+        </div>
+    </div>
+</nav>
+
+<!-- ══════════════ 主標題 ══════════════ -->
+<header class="text-center py-10 px-4 bg-gradient-to-br from-blue-700 to-indigo-800 text-white">
+    <h1 class="text-3xl md:text-4xl font-black mb-2 drop-shadow">🌐 全球村社會領域 AI 探究任務包</h1>
+    <p class="text-blue-200 text-sm md:text-base">適用年級：國小 3–6 年級 ｜ 整合全球化、生產消費、供應鏈與公民思辨</p>
+    <div class="mt-4 inline-flex items-center gap-2 bg-white/10 backdrop-blur px-4 py-1.5 rounded-full text-sm">
+        <span class="w-2 h-2 rounded-full bg-green-400"></span>
+        <span>AI 功能已啟用</span>
+    </div>
+</header>
+
+<div class="max-w-7xl mx-auto px-4 mt-8 space-y-12">
+
+<!-- ══════════════ 工具一：商品解碼器 ══════════════ -->
+<section id="tool1" class="tool-section bg-white rounded-2xl shadow-lg overflow-hidden border border-blue-100">
+    <div class="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-white text-xl">🔍</div>
+        <div>
+            <h2 class="text-xl font-black text-white">工具一：商品解碼器</h2>
+            <p class="text-blue-100 text-xs mt-0.5">三年級生產與消費 · 六年級全球化 ｜ 辨識商品成分與全球產地來源</p>
+        </div>
+        <div id="badge1" class="ml-auto hidden"><span class="badge">✓ 已完成</span></div>
+    </div>
+
+    <div class="p-6">
+        <!-- 上傳區域 -->
+        <div class="upload-zone p-6 text-center mb-6" id="uploadZone"
+             ondragover="event.preventDefault();this.classList.add('dragover')"
+             ondragleave="this.classList.remove('dragover')"
+             ondrop="handleDrop(event)">
+            <input type="file" id="imageUpload" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+            <div id="uploadContent">
+                <div class="text-5xl mb-3">📦</div>
+                <p class="font-bold text-gray-700 mb-1">拖曳商品圖片到這裡，或點擊上傳</p>
+                <p class="text-gray-400 text-sm mb-4">支援 JPG、PNG、WEBP 等格式</p>
+                <div class="flex flex-wrap gap-3 justify-center">
+                    <button onclick="document.getElementById('imageUpload').click()"
+                            class="bg-blue-600 text-white px-5 py-2.5 rounded-full font-bold hover:bg-blue-700 transition shadow">
+                        <i class="fas fa-upload mr-2"></i>選擇圖片
+                    </button>
+                    <button onclick="loadDemoData()"
+                            class="bg-gray-100 text-gray-600 px-5 py-2.5 rounded-full font-bold hover:bg-gray-200 transition">
+                        🎯 使用示範資料
+                    </button>
+                </div>
+            </div>
+            <!-- 預覽圖 -->
+            <img id="imagePreview" src="" alt="" class="hidden mx-auto max-h-40 object-contain rounded-lg shadow mt-3">
+        </div>
+
+        <!-- 分析結果 -->
+        <div class="relative min-h-[80px]">
+            <div id="loadingOverlay" class="hidden absolute inset-0 bg-white/95 flex flex-col items-center justify-center z-10 rounded-xl">
+                <div class="text-4xl mb-3 animate-spin">⚙️</div>
+                <p class="text-blue-700 font-bold">AI 影像辨識與產地推估中⋯</p>
+                <p class="text-gray-400 text-sm mt-1">約需 5–10 秒</p>
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-gray-200 shadow-sm">
+                <table class="w-full text-left text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-blue-50 text-blue-800">
+                            <th class="p-3 border-b border-blue-100 font-bold w-1/3">產品名稱與廠牌</th>
+                            <th class="p-3 border-b border-blue-100 font-bold w-1/3">主要成分 / 原料</th>
+                            <th class="p-3 border-b border-blue-100 font-bold w-1/3">全球產地來源推估</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productTableBody">
+                        <tr>
+                            <td colspan="3" class="p-6 text-center text-gray-400">
+                                <i class="fas fa-arrow-up mr-2"></i>請上傳商品圖片，或點擊「使用示範資料」
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 完成後提示 -->
+        <div id="tool1hint" class="hidden mt-4 p-3 bg-blue-50 rounded-lg text-blue-700 text-sm font-medium fade-up">
+            ✅ 商品解碼完成！資料已帶入工具二與工具三，請繼續往下探索！
+            <button onclick="scrollToTool(2)" class="ml-3 underline font-bold">前往工具二 →</button>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════ 工具二：全球流通生成局 ══════════════ -->
+<section id="tool2" class="tool-section bg-white rounded-2xl shadow-lg overflow-hidden border border-green-100">
+    <div class="bg-gradient-to-r from-green-600 to-emerald-500 px-6 py-4 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl">🗺️</div>
+        <div>
+            <h2 class="text-xl font-black text-white">工具二：全球流通生成局</h2>
+            <p class="text-green-100 text-xs mt-0.5">四年級家鄉行業 · 六年級全球化 ｜ 在世界地圖標示跨國貿易路線</p>
+        </div>
+        <div id="badge2" class="ml-auto hidden"><span class="badge">✓ 已完成</span></div>
+    </div>
+
+    <div class="p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- 左側輸入 -->
+            <div class="lg:col-span-4">
+                <label class="block font-bold text-gray-800 mb-2">選擇或輸入出口目的地：</label>
+
+                <!-- 快速選擇晶片 -->
+                <div class="mb-3 space-y-1.5">
+                    <p class="text-xs text-gray-500 font-bold mb-2">▸ 點擊快速代入：</p>
+                    <div class="prompt-chip bg-green-50 text-green-800 text-sm px-3 py-2 rounded-lg font-medium"
+                         onclick="setPrompt('台灣在地加工完成的商品，出口到美國紐約。')">
+                        🇺🇸 台灣商品 → 美國紐約
+                    </div>
+                    <div class="prompt-chip bg-green-50 text-green-800 text-sm px-3 py-2 rounded-lg font-medium"
+                         onclick="setPrompt('台灣製造的特色產品，出現在日本東京超市。')">
+                        🇯🇵 台灣商品 → 日本東京
+                    </div>
+                    <div class="prompt-chip bg-green-50 text-green-800 text-sm px-3 py-2 rounded-lg font-medium"
+                         onclick="setPrompt('台灣外銷至英國倫敦與德國的歐洲消費市場。')">
+                        🇪🇺 台灣商品 → 歐洲市場
+                    </div>
+                    <div class="prompt-chip bg-green-50 text-green-800 text-sm px-3 py-2 rounded-lg font-medium"
+                         onclick="setPrompt('台灣商品出口到澳洲雪梨市場。')">
+                        🇦🇺 台灣商品 → 澳洲雪梨
+                    </div>
+                </div>
+
+                <textarea id="aiPrompt" class="w-full p-3 border border-gray-200 rounded-xl h-24 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" placeholder="或自行輸入出口目的地描述⋯"></textarea>
+                <button onclick="simulateMapGen()"
+                        class="mt-3 w-full bg-green-600 text-white py-3 rounded-full font-bold hover:bg-green-700 transition shadow-md flex items-center justify-center gap-2">
+                    <i class="fas fa-map-marked-alt"></i> 生成世界流通地圖
+                </button>
+            </div>
+
+            <!-- 地圖顯示區 -->
+            <div class="lg:col-span-8" id="mapArea">
+                <div class="min-h-[300px] bg-gray-50 rounded-xl border-2 border-dashed border-green-200 flex flex-col items-center justify-center text-center p-8">
+                    <div class="text-5xl mb-3">🌍</div>
+                    <p class="font-bold text-gray-500">輸入出口目的地後，按下「生成世界流通地圖」</p>
+                    <p class="text-sm text-gray-400 mt-1">地圖會自動帶入工具一偵測的商品資訊</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="tool2hint" class="hidden mt-4 p-3 bg-green-50 rounded-lg text-green-700 text-sm font-medium fade-up">
+            ✅ 貿易路線繪製完成！請繼續前往工具三分析這件商品的成本結構。
+            <button onclick="scrollToTool(3)" class="ml-3 underline font-bold">前往工具三 →</button>
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════ 工具三：供應鏈透視鏡 ══════════════ -->
+<section id="tool3" class="tool-section bg-white rounded-2xl shadow-lg overflow-hidden border border-yellow-100">
+    <div class="bg-gradient-to-r from-amber-500 to-yellow-400 px-6 py-4 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl">💰</div>
+        <div>
+            <h2 class="text-xl font-black text-white">工具三：供應鏈透視鏡</h2>
+            <p class="text-yellow-100 text-xs mt-0.5">五年級理財觀念 · 六年級全球生產分工 ｜ 分析商品成本結構</p>
+        </div>
+        <div id="badge3" class="ml-auto hidden"><span class="badge">✓ 已完成</span></div>
+    </div>
+
+    <div class="p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+            <!-- 左欄：AI 分析基準 -->
+            <div class="bg-amber-50 p-5 rounded-xl border border-amber-100 relative">
+                <span class="absolute -top-3 right-4 bg-amber-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow">AI 分析基準</span>
+                <h3 id="t3ProductName" class="font-bold text-lg text-gray-800 mb-1">跨國智慧型手機（預設範例）</h3>
+                <p class="text-sm text-gray-500 mb-4">假定末端售價：<span class="font-bold text-red-600 text-base">1,000 元</span></p>
+
+                <div class="flex items-center gap-5 mb-5">
+                    <div class="pie border-4 border-white" id="basePie"
+                         style="background:conic-gradient(#f59e0b 0% 40%,#3b82f6 40% 55%,#ef4444 55% 100%)"></div>
+                    <div class="text-sm space-y-2">
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-400 inline-block"></span>生產研發：40%（400元）</div>
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>物流運費：15%（150元）</div>
+                        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>銷售利潤：45%（450元）</div>
+                    </div>
+                </div>
+
+                <div class="space-y-2.5 text-sm" id="baseCostDetail">
+                    <div class="bg-white p-3 rounded-lg border-l-4 border-amber-400">
+                        <p class="font-bold text-amber-600 mb-1">🟨 生產研發（400元）</p>
+                        <p class="text-gray-600">原料採購 150 + 勞工薪資 150 + 機器折舊研發 100</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg border-l-4 border-blue-400">
+                        <p class="font-bold text-blue-600 mb-1">🟦 全球物流（150元）</p>
+                        <p class="text-gray-600">海空運費 80 + 進出口關稅 40 + 倉儲配送 30</p>
+                    </div>
+                    <div class="bg-white p-3 rounded-lg border-l-4 border-red-400">
+                        <p class="font-bold text-red-600 mb-1">🟥 銷售廣告與利潤（450元）</p>
+                        <p class="text-gray-600">行銷廣告 150 + 通路抽成 150 = 成本 300，<strong class="text-red-600">淨利潤 150 元</strong></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右欄：學生模擬 -->
+            <div class="bg-indigo-50 p-5 rounded-xl border-2 border-indigo-200 relative">
+                <span class="absolute -top-3 right-4 bg-indigo-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow">學生模擬操作</span>
+                <h3 class="font-bold text-lg text-indigo-900 mb-1">👨‍💼 生產者決策模擬器</h3>
+                <p class="text-xs text-indigo-600 mb-4">調整生產與物流比例，第三軌「銷售利潤」會自動計算，看看利潤如何變化！</p>
+
+                <div class="bg-white p-4 rounded-xl shadow-sm space-y-4 mb-5">
+                    <!-- 生產滑桿 -->
+                    <div>
+                        <div class="flex justify-between text-sm font-bold text-gray-700 mb-1">
+                            <span>🟨 生產與研發</span>
+                            <span class="text-amber-500" id="valProd">30%</span>
+                        </div>
+                        <input type="range" id="simProd" min="5" max="80" value="30" oninput="updateSim()">
+                    </div>
+                    <!-- 物流滑桿 -->
+                    <div>
+                        <div class="flex justify-between text-sm font-bold text-gray-700 mb-1">
+                            <span>🟦 物流與運費</span>
+                            <span class="text-blue-500" id="valShip">20%</span>
+                        </div>
+                        <input type="range" id="simShip" min="5" max="50" value="20" oninput="updateSim()">
+                    </div>
+                    <!-- 銷售（自動計算，唯讀） -->
+                    <div class="bg-red-50 p-3 rounded-lg border border-red-100">
+                        <div class="flex justify-between text-sm font-bold text-gray-700 mb-1">
+                            <span>🟥 銷售廣告與利潤 <span class="text-xs text-gray-400 font-normal">（自動計算）</span></span>
+                            <span class="text-red-500 text-lg" id="valSale">50%</span>
+                        </div>
+                        <div id="saleFeedback" class="text-xs mt-1 text-red-600 font-bold"></div>
+                    </div>
+                </div>
+
+                <!-- 結果 -->
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="pie border-4 border-white" id="simPie"
+                         style="background:conic-gradient(#f59e0b 0% 30%,#3b82f6 30% 50%,#ef4444 50% 100%)"></div>
+                    <div class="flex-1 bg-white p-3 rounded-lg shadow-sm text-sm space-y-1.5">
+                        <p class="font-bold text-gray-700 border-b pb-1 mb-1">模擬結果（售價 1,000 元）</p>
+                        <div class="flex justify-between"><span>生產成本</span><span class="font-bold text-amber-600" id="resProd">300 元</span></div>
+                        <div class="flex justify-between"><span>物流成本</span><span class="font-bold text-blue-600" id="resShip">200 元</span></div>
+                        <div class="flex justify-between border-t pt-1"><span class="font-bold">銷售區塊</span><span class="font-bold text-red-600" id="resSale">500 元</span></div>
+                        <div class="flex justify-between bg-green-50 px-2 py-1 rounded"><span class="font-bold text-green-700">估算淨利潤</span><span class="font-bold text-green-700" id="resProfit">? 元</span></div>
+                    </div>
+                </div>
+
+                <div class="bg-indigo-100 p-3 rounded-lg text-xs text-indigo-800 leading-relaxed">
+                    <strong>💡 思考挑戰：</strong>降低生產成本會讓商品品質變差嗎？提高物流比例換取「隔天到貨」，消費者願意多付錢嗎？
+                </div>
+
+                <button onclick="markDone(3)" class="mt-4 w-full bg-indigo-600 text-white py-2.5 rounded-full font-bold hover:bg-indigo-700 transition text-sm">
+                    ✅ 我完成分析了，繼續下一關！
+                </button>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<!-- ══════════════ 工具四：多重宇宙辯論會 ══════════════ -->
+<section id="tool4" class="tool-section bg-white rounded-2xl shadow-lg overflow-hidden border border-purple-100">
+    <div class="bg-gradient-to-r from-purple-600 to-violet-500 px-6 py-4 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl">🗣️</div>
+        <div>
+            <h2 class="text-xl font-black text-white">工具四：多重宇宙辯論會</h2>
+            <p class="text-purple-100 text-xs mt-0.5">跨年級思辨 ｜ 針對全球化議題進行多角度換位思考</p>
+        </div>
+        <div id="badge4" class="ml-auto hidden"><span class="badge">✓ 已完成</span></div>
+    </div>
+
+    <div class="p-6">
+        <!-- 情境說明 -->
+        <div class="bg-purple-50 p-4 rounded-xl border border-purple-100 mb-6 text-center shadow-inner">
+            <p class="text-xs text-purple-500 font-bold mb-1">探究情境</p>
+            <h3 class="font-black text-xl text-purple-900">家鄉決定引進「自動化大型跨國物流中心」</h3>
+            <p class="text-sm text-gray-600 mt-1">這個決定對不同的人，會帶來完全不同的感受——請選擇你的立場，寫出你的論點！</p>
+        </div>
+
+        <!-- 三個立場卡 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <!-- 立場一 -->
+            <div class="stance-card p-5 bg-white rounded-xl shadow-sm" onclick="selectStance(1)" id="stance1">
+                <div class="text-center text-4xl mb-2">👷</div>
+                <h4 class="text-center font-black text-purple-800 mb-3">在地求職者</h4>
+                <p class="text-sm text-gray-600 leading-relaxed mb-3">關心的是<strong class="text-purple-600">就業機會</strong>——自動化工廠能否創造留在家鄉工作的機會？</p>
+                <div class="bg-purple-50 p-2.5 rounded-lg text-xs text-gray-700 italic leading-relaxed">
+                    「自動化物流廠能提供科技管理與維修的工作，讓我們不用離鄉背井！」
+                </div>
+            </div>
+            <!-- 立場二 -->
+            <div class="stance-card p-5 bg-white rounded-xl shadow-sm" onclick="selectStance(2)" id="stance2">
+                <div class="text-center text-4xl mb-2">🌿</div>
+                <h4 class="text-center font-black text-green-800 mb-3">環保團體</h4>
+                <p class="text-sm text-gray-600 leading-relaxed mb-3">關心的是<strong class="text-green-600">生態永續</strong>——大型工業建設會帶來多少碳排放與包裝垃圾？</p>
+                <div class="bg-green-50 p-2.5 rounded-lg text-xs text-gray-700 italic leading-relaxed">
+                    「每天進出的貨車排碳量與網購包裝垃圾，將對家鄉生態造成不可逆的負擔。」
+                </div>
+            </div>
+            <!-- 立場三 -->
+            <div class="stance-card p-5 bg-white rounded-xl shadow-sm" onclick="selectStance(3)" id="stance3">
+                <div class="text-center text-4xl mb-2">🛒</div>
+                <h4 class="text-center font-black text-orange-800 mb-3">一般消費者</h4>
+                <p class="text-sm text-gray-600 leading-relaxed mb-3">關心的是<strong class="text-orange-600">生活便利</strong>——物流中心是否讓購物更快、更便宜？</p>
+                <div class="bg-orange-50 p-2.5 rounded-lg text-xs text-gray-700 italic leading-relaxed">
+                    「物流中心在家鄉，網購隔天到貨而且運費更便宜，生活便利性大提升！」
+                </div>
+            </div>
+        </div>
+
+        <!-- 互動輸入區 -->
+        <div id="debateInput" class="bg-purple-50 p-5 rounded-xl border-2 border-purple-200 fade-up">
+            <p class="font-bold text-purple-800 mb-1" id="stancePrompt">👆 請先點選上方你認同的立場</p>
+            <div id="selectedStanceLabel" class="mb-3 hidden">
+                <span class="text-sm font-bold text-gray-600">你選擇的立場：</span>
+                <span id="stanceTag" class="badge ml-2"></span>
+            </div>
+            <label class="block text-sm font-bold text-gray-700 mb-2">✍️ 寫下你的具體論點：</label>
+            <textarea id="debateText" class="w-full p-3 border border-purple-200 rounded-xl h-24 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white"
+                      placeholder="選擇立場後，在這裡寫下你支持或反對的理由⋯"></textarea>
+
+            <div class="flex flex-wrap gap-3 mt-3 justify-between items-center">
+                <div class="text-xs text-gray-500">💡 試著想想：「對誰有利？對誰有害？有沒有兩全其美的方法？」</div>
+                <button onclick="submitDebate()" class="bg-purple-600 text-white px-5 py-2.5 rounded-full font-bold hover:bg-purple-700 transition shadow text-sm">
+                    📣 提交我的觀點
+                </button>
+            </div>
+        </div>
+
+        <!-- 提交後的回饋 -->
+        <div id="debateFeedback" class="hidden mt-4 p-4 bg-white rounded-xl border-2 border-purple-200 shadow fade-up">
+            <p class="font-bold text-purple-700 mb-2">🎉 很棒！你的觀點已記錄：</p>
+            <div id="feedbackContent" class="text-sm text-gray-700 bg-purple-50 p-3 rounded-lg leading-relaxed"></div>
+            <button onclick="resetDebate()" class="mt-3 text-sm text-purple-600 underline">換個立場再試試</button>
+        </div>
+    </div>
+</section>
+
+</div><!-- end max-w-7xl -->
+
+<!-- ══════════════ 頁尾 ══════════════ -->
+<footer class="text-center mt-16 pb-8 text-gray-400 text-sm px-4">
+    <p>© 2026 國小社會科 AI 自主學習設計方案 ｜ 本工具需要 Google Gemini API 金鑰才能使用 AI 功能</p>
+</footer>
+
+
+<script>
+// ─────────────────────────────────────────────
+//  全域狀態
+// ─────────────────────────────────────────────
+let productData = null;
+let selectedStance = null;
+
+const STANCE_INFO = {
+    1: { label: '在地求職者', color: 'bg-purple-500', emoji: '👷' },
+    2: { label: '環保團體',   color: 'bg-green-500',  emoji: '🌿' },
+    3: { label: '一般消費者', color: 'bg-orange-500', emoji: '🛒' }
+};
+
+// ─────────────────────────────────────────────
+//  初始化
+// ─────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+    updateSim();
+});
+
+// ─────────────────────────────────────────────
+//  導覽
+// ─────────────────────────────────────────────
+function scrollToTool(n) {
+    document.getElementById('tool' + n).scrollIntoView({ behavior: 'smooth' });
+    document.querySelectorAll('.nav-step').forEach((el, i) => {
+        el.classList.toggle('active', i === n - 1);
+    });
+}
+
+function markDone(n) {
+    const dot = document.getElementById('dot' + n);
+    dot.innerHTML = '✓';
+    dot.parentElement.classList.add('done');
+    document.getElementById('badge' + n).classList.remove('hidden');
+    if (n < 4) scrollToTool(n + 1);
+}
+
+
+// ─────────────────────────────────────────────
+//  工具一：商品解碼器
+// ─────────────────────────────────────────────
+function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('uploadZone').classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) processImageFile(file);
+}
+
+function handleImageUpload(e) {
+    const file = e.target.files[0];
+    if (file) processImageFile(file);
+}
+
+function processImageFile(file) {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        const preview = document.getElementById('imagePreview');
+        preview.src = e.target.result;
+        preview.classList.remove('hidden');
+        await analyzeImage(e.target.result);
+    };
+    reader.readAsDataURL(file);
+}
+
+async function analyzeImage(dataURL) {
+    const overlay = document.getElementById('loadingOverlay');
+    overlay.classList.remove('hidden');
+
+    try {
+        const base64   = dataURL.split(',')[1];
+        const mimeType = dataURL.split(';')[0].split(':')[1];
+
+        const prompt = `你是商品成分分析專家與國小社會科教育助手。
+請觀察這張商品圖片，判讀廠牌、商品名稱、主要成分或原料（至少3種），並推估這些原料可能來自哪些國家。
+請務必回傳 JSON 格式（不含 markdown code block）：
+{
+  "name": "廠牌與產品名稱",
+  "items": "主要成分，用頓號分隔，至少3種",
+  "origin": "原料可能來自哪些國家，約1~2句話",
+  "originKeyword": "主要原產地關鍵字（如：巴西、東南亞、歐洲）"
+}`;
+
+        // 呼叫伺服器端代理，API Key 不會暴露在前端
+        const res = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mimeType, base64Data: base64, prompt })
+        });
+
+        if (!res.ok) throw new Error(`伺服器錯誤 ${res.status}`);
+        const json = await res.json();
+        const raw  = json.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!raw) throw new Error('空回應');
+
+        const cleaned = raw.replace(/```json|```/g, '').trim();
+        const data    = JSON.parse(cleaned);
+        setProductData(data);
+
+    } catch (err) {
+        console.error(err);
+        document.getElementById('productTableBody').innerHTML = `
+            <tr><td colspan="3" class="p-4 text-center text-red-500 font-bold">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                分析失敗（${err.message}）。請改用「示範資料」體驗功能。
+            </td></tr>`;
+    } finally {
+        overlay.classList.add('hidden');
+    }
+}
+
+function setProductData(data) {
+    productData = data;
+
+    document.getElementById('productTableBody').innerHTML = `
+        <tr class="fade-up">
+            <td class="p-3 border-b font-bold text-blue-700">${data.name}</td>
+            <td class="p-3 border-b text-gray-700">${data.items}</td>
+            <td class="p-3 border-b text-sm text-green-700 bg-green-50">${data.origin}</td>
+        </tr>`;
+
+    // 更新工具三標題
+    document.getElementById('t3ProductName').textContent = `${data.name} 成本結構分析`;
+
+    // 顯示完成提示
+    document.getElementById('tool1hint').classList.remove('hidden');
+    markDone(1);
+}
+
+function loadDemoData() {
+    setProductData({
+        name: 'ASUS 無線藍牙鍵盤（台灣品牌）',
+        items: '塑膠按鍵（中國大陸）、鋰電池（韓國）、PCB 電路板（台灣）、金屬底座（馬來西亞）',
+        origin: '主要原料來自中國大陸（塑膠零件）、韓國（電池芯）與台灣（電路板），在台灣進行最終組裝後出口。',
+        originKeyword: '中國大陸、韓國、台灣'
+    });
+    document.getElementById('imagePreview').src = '';
+    document.getElementById('imagePreview').classList.add('hidden');
+}
+
+// ─────────────────────────────────────────────
+//  工具二：全球流通地圖
+// ─────────────────────────────────────────────
+function setPrompt(text) {
+    document.getElementById('aiPrompt').value = text;
+}
+
+// 精準經緯度座標映射（SVG viewBox 1000×500）
+const LOCATION_MAP = {
+    '台灣':        { x: 815, y: 225 },
+    '日本':        { x: 870, y: 175 },
+    '東京':        { x: 880, y: 180 },
+    '大阪':        { x: 860, y: 190 },
+    '韓國':        { x: 840, y: 175 },
+    '中國':        { x: 760, y: 200 },
+    '上海':        { x: 790, y: 210 },
+    '北京':        { x: 785, y: 185 },
+    '東南亞':      { x: 765, y: 270 },
+    '越南':        { x: 760, y: 265 },
+    '泰國':        { x: 745, y: 265 },
+    '馬來西亞':    { x: 760, y: 285 },
+    '印尼':        { x: 790, y: 305 },
+    '印度':        { x: 690, y: 255 },
+    '澳洲':        { x: 840, y: 390 },
+    '雪梨':        { x: 865, y: 400 },
+    '美國':        { x: 160, y: 185 },
+    '紐約':        { x: 215, y: 175 },
+    '洛杉磯':      { x: 110, y: 195 },
+    '加拿大':      { x: 160, y: 145 },
+    '南美':        { x: 265, y: 360 },
+    '巴西':        { x: 280, y: 355 },
+    '歐洲':        { x: 505, y: 148 },
+    '英國':        { x: 480, y: 140 },
+    '倫敦':        { x: 478, y: 142 },
+    '德國':        { x: 510, y: 145 },
+    '法國':        { x: 498, y: 155 },
+    '非洲':        { x: 520, y: 295 },
+    '中東':        { x: 600, y: 230 },
+    '俄羅斯':      { x: 650, y: 130 },
+};
+
+function getCoords(text) {
+    if (!text) return { x: 500, y: 250 };
+    for (const [key, coord] of Object.entries(LOCATION_MAP)) {
+        if (text.includes(key)) return coord;
+    }
+    return { x: 400, y: 250 };
+}
+
+function simulateMapGen() {
+    const prompt = document.getElementById('aiPrompt').value.trim();
+    if (!prompt) {
+        alert('請先選擇或輸入出口目的地！');
+        return;
+    }
+    const mapArea = document.getElementById('mapArea');
+    mapArea.innerHTML = `<div class="min-h-[300px] bg-gray-50 rounded-xl border-2 border-green-200 flex items-center justify-center">
+        <div class="text-center">
+            <div class="text-4xl mb-3 animate-spin">🌏</div>
+            <p class="font-bold text-green-700">正在繪製貿易路線⋯</p>
+        </div>
+    </div>`;
+    setTimeout(() => renderMap(prompt), 600);
+}
+
+function renderMap(prompt) {
+    const mapArea = document.getElementById('mapArea');
+
+    let originText   = productData?.originKeyword || '東南亞';
+    let itemsText    = productData?.items ? productData.items.substring(0, 40) + (productData.items.length > 40 ? '…' : '') : '各式加工原料';
+    let productName  = productData?.name || '台灣製造商品';
+
+    const originCoords = getCoords(originText);
+    const twCoords     = LOCATION_MAP['台灣'];
+    const destCoords   = getCoords(prompt);
+
+    // 貝茲曲線控制點（向上彎曲）
+    const cp1x = (originCoords.x + twCoords.x) / 2;
+    const cp1y = Math.min(originCoords.y, twCoords.y) - 70;
+    const cp2x = (twCoords.x + destCoords.x) / 2;
+    const cp2y = Math.min(twCoords.y, destCoords.y) - 90;
+
+    // 識別目標地名稱
+    let destName = '全球市場';
+    for (const key of Object.keys(LOCATION_MAP)) {
+        if (prompt.includes(key)) { destName = key + '市場'; break; }
+    }
+
+    mapArea.innerHTML = `
+    <div class="rounded-xl overflow-hidden border-2 border-green-200 shadow-md fade-up">
+        <div class="flex flex-col lg:flex-row bg-white">
+
+            <!-- 左側資訊 -->
+            <div class="map-side w-full lg:w-48 bg-red-50 p-4 border-b lg:border-b-0 lg:border-r border-red-100 flex flex-col justify-center">
+                <div class="flex items-center gap-2 mb-3 pb-2 border-b border-red-200">
+                    <span class="text-xl">📦</span>
+                    <span class="font-black text-red-700 text-sm">進口來源地</span>
+                </div>
+                <p class="text-xs text-red-500 font-bold mb-1">原料來源：</p>
+                <p class="text-sm font-bold text-gray-800 mb-3 leading-snug">${originText}</p>
+                <p class="text-xs text-gray-400 mb-1">主要原料：</p>
+                <p class="text-xs text-gray-700">${itemsText}</p>
+                <div class="mt-3 flex items-center gap-1.5 text-xs text-red-600 font-bold">
+                    <svg width="28" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#ef4444" stroke-width="2.5" stroke-dasharray="4,3"/><polygon points="20,1 27,4 20,7" fill="#ef4444"/></svg>
+                    紅線路徑
+                </div>
+            </div>
+
+            <!-- 地圖主體 -->
+            <div class="flex-1 p-3 bg-[#dbeafe] flex items-center justify-center">
+                <div class="map-wrap">
+                    <svg class="absolute inset-0 w-full h-full" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
+                        <defs>
+                            <marker id="mr" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                <path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/>
+                            </marker>
+                            <marker id="mb" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                                <path d="M0,0 L10,5 L0,10 z" fill="#3b82f6"/>
+                            </marker>
+                        </defs>
+
+                        <!-- 紅線：原料 → 台灣 -->
+                        <path d="M${originCoords.x},${originCoords.y} Q${cp1x},${cp1y} ${twCoords.x},${twCoords.y}"
+                              fill="none" stroke="#ef4444" stroke-width="4.5" marker-end="url(#mr)"
+                              class="flow-line"/>
+                        <!-- 藍線：台灣 → 出口地 -->
+                        <path d="M${twCoords.x},${twCoords.y} Q${cp2x},${cp2y} ${destCoords.x},${destCoords.y}"
+                              fill="none" stroke="#3b82f6" stroke-width="4.5" marker-end="url(#mb)"
+                              class="flow-line"/>
+
+                        <!-- 圓點 -->
+                        <circle cx="${originCoords.x}" cy="${originCoords.y}" r="9" fill="#ef4444" stroke="white" stroke-width="2.5"/>
+                        <circle cx="${twCoords.x}" cy="${twCoords.y}" r="12" fill="#f59e0b" stroke="white" stroke-width="3"/>
+                        <circle cx="${destCoords.x}" cy="${destCoords.y}" r="9" fill="#3b82f6" stroke="white" stroke-width="2.5"/>
+                    </svg>
+
+                    <!-- 台灣標籤 -->
+                    <div class="absolute pointer-events-none z-10 text-center"
+                         style="left:${(twCoords.x/1000)*100}%;top:${(twCoords.y/500)*100}%;transform:translate(-50%,16px)">
+                        <span class="text-[10px] font-black text-gray-800 bg-white/95 px-1.5 py-0.5 rounded shadow border border-yellow-300">🇹🇼 台灣製造</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側資訊 -->
+            <div class="map-side w-full lg:w-48 bg-blue-50 p-4 border-t lg:border-t-0 lg:border-l border-blue-100 flex flex-col justify-center">
+                <div class="flex items-center gap-2 mb-3 pb-2 border-b border-blue-200">
+                    <span class="text-xl">🛍️</span>
+                    <span class="font-black text-blue-700 text-sm">出口目的地</span>
+                </div>
+                <p class="text-xs text-blue-500 font-bold mb-1">目標市場：</p>
+                <p class="text-sm font-bold text-gray-800 mb-3 leading-snug">${destName}</p>
+                <p class="text-xs text-gray-400 mb-1">流通商品：</p>
+                <p class="text-xs text-gray-700">${productName}</p>
+                <div class="mt-3 flex items-center gap-1.5 text-xs text-blue-600 font-bold">
+                    <svg width="28" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#3b82f6" stroke-width="2.5" stroke-dasharray="4,3"/><polygon points="20,1 27,4 20,7" fill="#3b82f6"/></svg>
+                    藍線路徑
+                </div>
+            </div>
+
+        </div>
+    </div>`;
+
+    document.getElementById('tool2hint').classList.remove('hidden');
+    markDone(2);
+}
+
+// ─────────────────────────────────────────────
+//  工具三：成本模擬器
+// ─────────────────────────────────────────────
+function updateSim() {
+    const p   = parseInt(document.getElementById('simProd').value);
+    const s   = parseInt(document.getElementById('simShip').value);
+    const sa  = Math.max(0, 100 - p - s);   // 自動計算，永遠加總=100
+
+    document.getElementById('valProd').textContent = p + '%';
+    document.getElementById('valShip').textContent = s + '%';
+    document.getElementById('valSale').textContent = sa + '%';
+
+    document.getElementById('simPie').style.background =
+        `conic-gradient(#f59e0b 0% ${p}%, #3b82f6 ${p}% ${p+s}%, #ef4444 ${p+s}% 100%)`;
+
+    document.getElementById('resProd').textContent   = (p * 10) + ' 元';
+    document.getElementById('resShip').textContent   = (s * 10) + ' 元';
+    document.getElementById('resSale').textContent   = (sa * 10) + ' 元';
+
+    // 估算淨利潤（銷售區塊 − 廣告通路成本，假設廣告通路約佔銷售的 2/3）
+    const estProfit = Math.round(sa * 10 * 0.33);
+    document.getElementById('resProfit').textContent = estProfit + ' 元';
+
+    // 回饋訊息
+    const fb = document.getElementById('saleFeedback');
+    if (sa < 0) {
+        fb.textContent = '⚠️ 生產 + 物流超過 100%，無法運作！請降低其中一項。';
+        document.getElementById('simPie').style.background = '#e5e7eb';
+    } else if (sa < 10) {
+        fb.textContent = '📉 利潤空間太低，難以維持長期經營。';
+    } else if (sa > 60) {
+        fb.textContent = '💰 銷售利潤佔比很高！消費者可能覺得太貴。';
+    } else {
+        fb.textContent = '✅ 這個比例看起來合理！';
+    }
+}
+
+// ─────────────────────────────────────────────
+//  工具四：辯論會
+// ─────────────────────────────────────────────
+function selectStance(n) {
+    selectedStance = n;
+    // 更新卡片樣式
+    [1,2,3].forEach(i => {
+        document.getElementById('stance' + i).classList.toggle('selected', i === n);
+    });
+    // 更新輸入區提示
+    const info = STANCE_INFO[n];
+    document.getElementById('stancePrompt').textContent = `你選擇了「${info.emoji} ${info.label}」的立場，請寫出你的具體論點：`;
+    document.getElementById('stanceTag').textContent = `${info.emoji} ${info.label}`;
+    document.getElementById('stanceTag').className = `badge ml-2 ${info.color}`;
+    document.getElementById('selectedStanceLabel').classList.remove('hidden');
+    document.getElementById('debateText').focus();
+}
+
+function submitDebate() {
+    if (!selectedStance) { alert('請先點選一個立場！'); return; }
+    const text = document.getElementById('debateText').value.trim();
+    if (!text) { alert('請寫下你的論點！'); return; }
+
+    const info = STANCE_INFO[selectedStance];
+    document.getElementById('feedbackContent').innerHTML = `
+        <div class="flex items-start gap-2">
+            <span class="text-2xl">${info.emoji}</span>
+            <div>
+                <p class="font-bold text-purple-700 mb-1">${info.label} 的論點：</p>
+                <p class="text-gray-700 leading-relaxed">${text}</p>
+            </div>
+        </div>`;
+
+    document.getElementById('debateFeedback').classList.remove('hidden');
+    document.getElementById('debateInput').classList.add('opacity-50', 'pointer-events-none');
+    markDone(4);
+}
+
+function resetDebate() {
+    selectedStance = null;
+    [1,2,3].forEach(i => document.getElementById('stance' + i).classList.remove('selected'));
+    document.getElementById('stancePrompt').textContent = '👆 請先點選上方你認同的立場';
+    document.getElementById('selectedStanceLabel').classList.add('hidden');
+    document.getElementById('debateText').value = '';
+    document.getElementById('debateFeedback').classList.add('hidden');
+    document.getElementById('debateInput').classList.remove('opacity-50', 'pointer-events-none');
+}
+</script>
+</body>
+</html>
