@@ -888,8 +888,17 @@ async function submitDebate() {
                 </div>
             </div>`;
     } catch(err) {
+        // 嘗試讀取伺服器回傳的錯誤詳情
+        let detail = err.message;
+        try {
+            const errJson = JSON.parse(err.message);
+            detail = errJson.error || err.message;
+        } catch(e) {}
         document.getElementById('aiFeedbackArea').innerHTML = `
-            <p class="text-sm text-red-500">⚠️ 無法取得 AI 建議（${err.message}），但你的論點已記錄！</p>`;
+            <div class="text-sm text-red-600 space-y-1">
+                <p class="font-bold">⚠️ 無法取得 AI 建議，請告知老師以下錯誤：</p>
+                <p class="bg-red-50 p-2 rounded font-mono text-xs break-all">${detail}</p>
+            </div>`;
     }
 
     btn.disabled = false;
