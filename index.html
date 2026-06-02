@@ -874,7 +874,11 @@ async function submitDebate() {
             body: JSON.stringify({ stance: info.label, argument: text })
         });
         const data = await res.json();
-        const feedback = data.feedback || '（無法取得建議，請稍後再試）';
+        // 若伺服器回傳錯誤，拋出含詳細訊息的 Error
+        if (!res.ok || data.error) {
+            throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        const feedback = data.feedback;
 
         document.getElementById('aiFeedbackArea').innerHTML = `
             <div class="flex items-start gap-2">
