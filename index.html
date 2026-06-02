@@ -653,22 +653,37 @@ function simulateMapGen() {
     setTimeout(() => renderMap(prompt), 600);
 }
 
+// 計算貝茲曲線終點切線方向，回傳箭頭三角形 SVG polygon points
+function arrowHead(cpx, cpy, ex, ey, color, size = 14) {
+    const angle = Math.atan2(ey - cpy, ex - cpx);
+    const spread = 0.42; // 箭頭開角（弧度）
+    const x1 = ex - size * Math.cos(angle - spread);
+    const y1 = ey - size * Math.sin(angle - spread);
+    const x2 = ex - size * Math.cos(angle + spread);
+    const y2 = ey - size * Math.sin(angle + spread);
+    return `<polygon points="${ex},${ey} ${x1},${y1} ${x2},${y2}" fill="${color}"/>`;
+}
+
 function renderMap(prompt) {
     const mapArea = document.getElementById('mapArea');
 
-    let originText   = productData?.originKeyword || '東南亞';
-    let itemsText    = productData?.items ? productData.items.substring(0, 40) + (productData.items.length > 40 ? '…' : '') : '各式加工原料';
-    let productName  = productData?.name || '台灣製造商品';
+    let originText  = productData?.originKeyword || '東南亞';
+    let itemsText   = productData?.items ? productData.items.substring(0, 40) + (productData.items.length > 40 ? '…' : '') : '各式加工原料';
+    let productName = productData?.name || '台灣製造商品';
 
-    const originCoords = getCoords(originText);
-    const twCoords     = LOCATION_MAP['台灣'];
-    const destCoords   = getCoords(prompt);
+    const oc = getCoords(originText);   // 原料來源
+    const tw = LOCATION_MAP['台灣'];    // 台灣（固定）
+    const dc = getCoords(prompt);       // 出口目的地
 
-    // 貝茲曲線控制點（向上彎曲）
-    const cp1x = (originCoords.x + twCoords.x) / 2;
-    const cp1y = Math.min(originCoords.y, twCoords.y) - 70;
-    const cp2x = (twCoords.x + destCoords.x) / 2;
-    const cp2y = Math.min(twCoords.y, destCoords.y) - 90;
+    // 貝茲曲線控制點（向上彎曲，避免貼地）
+    const cp1x = (oc.x + tw.x) / 2;
+    const cp1y = Math.min(oc.y, tw.y) - 80;
+    const cp2x = (tw.x + dc.x) / 2;
+    const cp2y = Math.min(tw.y, dc.y) - 90;
+
+    // 箭頭三角形（以控制點→終點方向計算角度）
+    const arrow1 = arrowHead(cp1x, cp1y, tw.x, tw.y, '#ef4444');
+    const arrow2 = arrowHead(cp2x, cp2y, dc.x, dc.y, '#3b82f6');
 
     // 識別目標地名稱
     let destName = '全球市場';
@@ -691,7 +706,10 @@ function renderMap(prompt) {
                 <p class="text-xs text-gray-400 mb-1">主要原料：</p>
                 <p class="text-xs text-gray-700">${itemsText}</p>
                 <div class="mt-3 flex items-center gap-1.5 text-xs text-red-600 font-bold">
-                    <svg width="28" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#ef4444" stroke-width="2.5" stroke-dasharray="4,3"/><polygon points="20,1 27,4 20,7" fill="#ef4444"/></svg>
+                    <svg width="28" height="8" xmlns="http://www.w3.org/2000/svg">
+                        <line x1="0" y1="4" x2="20" y2="4" stroke="#ef4444" stroke-width="2.5" stroke-dasharray="4,3"/>
+                        <polygon points="20,1 27,4 20,7" fill="#ef4444"/>
+                    </svg>
                     紅線路徑
                 </div>
             </div>
@@ -699,36 +717,40 @@ function renderMap(prompt) {
             <!-- 地圖主體 -->
             <div class="flex-1 p-3 bg-[#dbeafe] flex items-center justify-center">
                 <div class="map-wrap">
-                    <svg class="absolute inset-0 w-full h-full" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
-                        <defs>
-                            <marker id="mr" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-                                <path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/>
-                            </marker>
-                            <marker id="mb" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-                                <path d="M0,0 L10,5 L0,10 z" fill="#3b82f6"/>
-                            </marker>
-                        </defs>
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         style="position:absolute;inset:0;width:100%;height:100%;z-index:10;"
+                         viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet">
 
-                        <!-- 紅線：原料 → 台灣 -->
-                        <path d="M${originCoords.x},${originCoords.y} Q${cp1x},${cp1y} ${twCoords.x},${twCoords.y}"
-                              fill="none" stroke="#ef4444" stroke-width="4.5" marker-end="url(#mr)"
-                              class="flow-line"/>
-                        <!-- 藍線：台灣 → 出口地 -->
-                        <path d="M${twCoords.x},${twCoords.y} Q${cp2x},${cp2y} ${destCoords.x},${destCoords.y}"
-                              fill="none" stroke="#3b82f6" stroke-width="4.5" marker-end="url(#mb)"
-                              class="flow-line"/>
+                        <!-- 紅虛線：原料 → 台灣（不用 marker，直接畫箭頭） -->
+                        <path d="M${oc.x},${oc.y} Q${cp1x},${cp1y} ${tw.x},${tw.y}"
+                              fill="none" stroke="#ef4444" stroke-width="5"
+                              stroke-dasharray="14 8"
+                              style="animation:dashFlow 1.2s linear infinite"/>
+                        ${arrow1}
 
-                        <!-- 圓點 -->
-                        <circle cx="${originCoords.x}" cy="${originCoords.y}" r="9" fill="#ef4444" stroke="white" stroke-width="2.5"/>
-                        <circle cx="${twCoords.x}" cy="${twCoords.y}" r="12" fill="#f59e0b" stroke="white" stroke-width="3"/>
-                        <circle cx="${destCoords.x}" cy="${destCoords.y}" r="9" fill="#3b82f6" stroke="white" stroke-width="2.5"/>
+                        <!-- 藍虛線：台灣 → 出口地 -->
+                        <path d="M${tw.x},${tw.y} Q${cp2x},${cp2y} ${dc.x},${dc.y}"
+                              fill="none" stroke="#3b82f6" stroke-width="5"
+                              stroke-dasharray="14 8"
+                              style="animation:dashFlow 1.2s linear infinite"/>
+                        ${arrow2}
+
+                        <!-- 圓點標記 -->
+                        <circle cx="${oc.x}" cy="${oc.y}" r="10" fill="#ef4444" stroke="white" stroke-width="3"/>
+                        <circle cx="${tw.x}" cy="${tw.y}" r="13" fill="#f59e0b" stroke="white" stroke-width="3"/>
+                        <circle cx="${dc.x}" cy="${dc.y}" r="10" fill="#3b82f6" stroke="white" stroke-width="3"/>
+
+                        <!-- 地點文字標籤 -->
+                        <text x="${oc.x}" y="${oc.y - 16}" text-anchor="middle"
+                              font-size="13" font-weight="bold" fill="#b91c1c"
+                              paint-order="stroke" stroke="white" stroke-width="4">${originText}</text>
+                        <text x="${tw.x}" y="${tw.y - 18}" text-anchor="middle"
+                              font-size="13" font-weight="bold" fill="#92400e"
+                              paint-order="stroke" stroke="white" stroke-width="4">🇹🇼 台灣</text>
+                        <text x="${dc.x}" y="${dc.y - 16}" text-anchor="middle"
+                              font-size="13" font-weight="bold" fill="#1d4ed8"
+                              paint-order="stroke" stroke="white" stroke-width="4">${destName}</text>
                     </svg>
-
-                    <!-- 台灣標籤 -->
-                    <div class="absolute pointer-events-none z-10 text-center"
-                         style="left:${(twCoords.x/1000)*100}%;top:${(twCoords.y/500)*100}%;transform:translate(-50%,16px)">
-                        <span class="text-[10px] font-black text-gray-800 bg-white/95 px-1.5 py-0.5 rounded shadow border border-yellow-300">🇹🇼 台灣製造</span>
-                    </div>
                 </div>
             </div>
 
@@ -743,7 +765,10 @@ function renderMap(prompt) {
                 <p class="text-xs text-gray-400 mb-1">流通商品：</p>
                 <p class="text-xs text-gray-700">${productName}</p>
                 <div class="mt-3 flex items-center gap-1.5 text-xs text-blue-600 font-bold">
-                    <svg width="28" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#3b82f6" stroke-width="2.5" stroke-dasharray="4,3"/><polygon points="20,1 27,4 20,7" fill="#3b82f6"/></svg>
+                    <svg width="28" height="8" xmlns="http://www.w3.org/2000/svg">
+                        <line x1="0" y1="4" x2="20" y2="4" stroke="#3b82f6" stroke-width="2.5" stroke-dasharray="4,3"/>
+                        <polygon points="20,1 27,4 20,7" fill="#3b82f6"/>
+                    </svg>
                     藍線路徑
                 </div>
             </div>
@@ -810,23 +835,65 @@ function selectStance(n) {
     document.getElementById('debateText').focus();
 }
 
-function submitDebate() {
+async function submitDebate() {
     if (!selectedStance) { alert('請先點選一個立場！'); return; }
     const text = document.getElementById('debateText').value.trim();
-    if (!text) { alert('請寫下你的論點！'); return; }
+    if (!text || text.length < 10) { alert('請寫下更完整的論點（至少10個字）！'); return; }
 
     const info = STANCE_INFO[selectedStance];
+
+    // 顯示送出中狀態
+    const btn = document.querySelector('[onclick="submitDebate()"]');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="animate-spin inline-block mr-2">⏳</span> AI 老師批閱中…';
+
+    // 先顯示學生論點
+    const feedbackBox = document.getElementById('debateFeedback');
     document.getElementById('feedbackContent').innerHTML = `
-        <div class="flex items-start gap-2">
+        <div class="flex items-start gap-2 mb-4">
             <span class="text-2xl">${info.emoji}</span>
-            <div>
+            <div class="flex-1">
                 <p class="font-bold text-purple-700 mb-1">${info.label} 的論點：</p>
                 <p class="text-gray-700 leading-relaxed">${text}</p>
             </div>
+        </div>
+        <div id="aiFeedbackArea" class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <div class="flex items-center gap-2 text-amber-600">
+                <span class="animate-spin text-lg">⏳</span>
+                <span class="text-sm font-bold">AI 老師正在給你建議…</span>
+            </div>
         </div>`;
-
-    document.getElementById('debateFeedback').classList.remove('hidden');
+    feedbackBox.classList.remove('hidden');
     document.getElementById('debateInput').classList.add('opacity-50', 'pointer-events-none');
+
+    // 呼叫 AI 回饋 API
+    try {
+        const res = await fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stance: info.label, argument: text })
+        });
+        const data = await res.json();
+        const feedback = data.feedback || '（無法取得建議，請稍後再試）';
+
+        document.getElementById('aiFeedbackArea').innerHTML = `
+            <div class="flex items-start gap-2">
+                <span class="text-2xl flex-shrink-0">💬</span>
+                <div>
+                    <p class="font-black text-amber-700 text-sm mb-1">AI 老師的建議：</p>
+                    <p class="text-gray-700 text-sm leading-relaxed">${feedback}</p>
+                    <div class="mt-3 pt-2 border-t border-amber-200">
+                        <p class="text-xs text-amber-600 font-bold">✏️ 看完建議後，你想修改自己的論點嗎？</p>
+                    </div>
+                </div>
+            </div>`;
+    } catch(err) {
+        document.getElementById('aiFeedbackArea').innerHTML = `
+            <p class="text-sm text-red-500">⚠️ 無法取得 AI 建議（${err.message}），但你的論點已記錄！</p>`;
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '📣 提交我的觀點';
     markDone(4);
 }
 
