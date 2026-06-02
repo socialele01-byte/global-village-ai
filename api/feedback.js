@@ -20,32 +20,40 @@ export default async function handler(req, res) {
 請用繁體中文，以溫和、鼓勵的語氣，給予 50～100 字的具體建議，幫助學生思考論點是否完整、有沒有遺漏的角度，或可以如何補充說明。
 直接給建議內容即可，不要加任何標題或前言。`;
 
-    try {
-        const geminiRes = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        maxOutputTokens: 200,
-                        temperature: 0.7
-                    }
-                })
+    const MODELS = ['gemini-1.5-flash', 'gemini-1.5-flash-8b'];
+    const body = JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { maxOutputTokens: 200, temperature: 0.7 }
+    });
+
+    for (const model of MODELS) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+            try {
+                if (attempt > 0) await new Promise(r => setTimeout(r, 1500));
+
+                const geminiRes = await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+                    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }
+                );
+
+                // 429 限流：換模型或等待重試
+                if (geminiRes.status === 429) continue;
+
+                if (!geminiRes.ok) {
+                    const errBody = await geminiRes.text();
+                    throw new Error(`Gemini ${geminiRes.status}: ${errBody}`);
+                }
+
+                const data = await geminiRes.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                if (!text) throw new Error('Gemini 回傳空白內容');
+                return res.status(200).json({ feedback: text.trim() });
+
+            } catch (err) {
+                if (attempt === 1) break; // 進入下一個模型
             }
-        );
-
-        if (!geminiRes.ok) {
-            const errBody = await geminiRes.text();
-            throw new Error(`Gemini ${geminiRes.status}: ${errBody}`);
         }
-        const data = await geminiRes.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        if (!text) throw new Error('Gemini 回傳空白內容');
-        return res.status(200).json({ feedback: text.trim() });
-
-    } catch (err) {
-        return res.status(500).json({ error: err.message });
     }
+
+    return res.status(500).json({ error: '目前 AI 服務繁忙，請稍後再試（已嘗試所有可用模型）' });
 }
